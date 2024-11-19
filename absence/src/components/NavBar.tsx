@@ -12,7 +12,7 @@ function NavBar() {
     </div>
         </form>
         
-        <img src="logo_placeholder.png" alt="Beschreibung des Bildes" className="h-16 flex-shrink-0 "/>
+        <h1 className="text-5xl relative right-16">Abscence</h1>
        
         <div className="py-2 px-1">
         <img src="profile_placeholder.png" alt="Beschreibung des Bildes" className="w-16 h-16 rounded-full  object-cover"/>
