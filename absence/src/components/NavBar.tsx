@@ -1,15 +1,20 @@
+import Logo from "../assets/logo.png";
+import Htl from "../assets/htl3r_logo_transp.png";
+
 function NavBar() {
   return (
     <>
       <header className="bg-[#ebe9e9] text-black-lingu sticky top-0 z-10 ">
         <section className="max-w-8xl mx-auto py-2 flex justify-between items-center px-20 ">
-          <h1 className="text-5xl relative right-16">Abscence</h1>
+          <div className="w-1/6">
+            <img src={Logo} alt="Abscence Logo" />
+          </div>
 
-          <div className="py-2 px-1">
+          <div className="">
             <img
-              src="profile_placeholder.png"
+              src={Htl}
               alt="Beschreibung des Bildes"
-              className="w-16 h-16 rounded-full  object-cover"
+              className="w-full"
             />
           </div>
         </section>
