@@ -10,6 +10,7 @@ const Upload = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [originData, setOriginData] = useState([]); // Originaldaten speichern
+  const [mode, setMode] = useState('filter'); // Originaldaten speichern
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -85,20 +86,32 @@ const Upload = () => {
     setTableData(filteredData);
   };
 
+  const ChangeMode = () => {
+    
+
+    setMode((prevMode) =>
+      prevMode === "filter" ? "statistik" : "filter"
+
+    );
+
+  };
+
   return (
     <>
       {/* Hauptlayout */}
       <div className="flex w-full h-[91vh]">
         {/* Linker Bereich mit FilterMenu */}
-        <div className="w-1/3 bg-gray-100">
-          <FilterMenu onClick={Search} />
+
+        <div className="w-1/4 bg-[#ebe9e9]">
+          <FilterMenu onClick={Search} onChange={ChangeMode} />
         </div>
 
         {/* Trennlinie */}
-        <div className="w-0.5 bg-[#636363]"></div>
+        <div className="w-0.5 bg-[#D9D7D7]"></div>
 
         {/* Rechter Bereich mit Upload */}
-        <div className="w-2/3 bg-[#474747] flex justify-center items-center">
+        {mode === 'filter' ?(
+        <div className="w-full bg-[#ebe9e9] flex justify-center items-center">
           {!fileName && (
             <div
               className={`bg-white w-[50vw] h-[30vh] flex flex-col items-center rounded-3xl shadow-lg border-black border-2 p-12 ${
@@ -131,6 +144,7 @@ const Upload = () => {
             </div>
           )}
 
+
           {fileName && tableData.length > 0 && (
             <ExcelTable
               tableData={tableData}
@@ -139,7 +153,10 @@ const Upload = () => {
             />
           )}
         </div>
+                    ) : null}
+
       </div>
+
     </>
   );
 };
