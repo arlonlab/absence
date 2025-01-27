@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import * as XLSX from "xlsx";
 import UploadSVG from "../assets/uploadSVG.svg";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 const ExcelFilter = () => {
   const [data, setData] = useState([]);
@@ -10,7 +12,12 @@ const ExcelFilter = () => {
   const [fileName, setFileName] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [triangleColor, setTriangleColor] = useState("bg-[#A82036]");
+  const [statistikColor, setStatistikColor] = useState("bg-[#808080]");
 
+  const [status, setStatus] = useState(true);
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
   // Function to handle file upload and parse Excel
   const handleFileUpload = (file) => {
     const reader = new FileReader();
@@ -67,7 +74,7 @@ const ExcelFilter = () => {
       return acc;
     }, {});
     setFilters(initialFilters);
-  
+
     const options = columns.reduce((acc, column) => {
       const uniqueValues = [...new Set(data.map((row) => row[column]))];
       acc[column] = uniqueValues.sort(); // Sort the unique values alphabetically
@@ -75,7 +82,6 @@ const ExcelFilter = () => {
     }, {});
     setColumnOptions(options);
   };
-   
 
   // Handle filter changes
   const handleFilterChange = (e, column) => {
@@ -108,108 +114,217 @@ const ExcelFilter = () => {
     setFilteredData(filtered);
   };
 
+  const handleTriangleClick = () => {
+    setTriangleColor((prevColor) =>
+      prevColor === "bg-[#A82036]" ? "bg-[#808080]" : "bg-[#A82036]"
+    );
+
+    setStatistikColor((prevColor) =>
+      prevColor === "bg-[#808080]" ? "bg-[#A82036]" : "bg-[#808080]"
+    );
+
+    setStatus(!status);
+  };
+
+  const handleDateChange = (dates) => {
+    const [start, end] = dates;
+    setStartDate(start);
+    setEndDate(end);
+    applyDateFilter(start, end);
+  };
+
+  const applyDateFilter = (start, end) => {
+    if (!start || !end) return;
+
+    const filtered = data.filter((row) => {
+      const rowDate = new Date(row.Datum);
+      return rowDate >= start && rowDate <= end;
+    });
+
+    setFilteredData(filtered);
+  };
+
   return (
     <div className="flex w-full h-[100vh]">
       {/* Filter Section */}
-      <div className="w-1/3 bg-gray-100 p-4 overflow-y-auto">
-        <h2 className="text-lg font-semibold mb-2">Filters</h2>
-        {data.length > 0 && (
-          <>
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={handleSearchChange}
-              className="block w-full mb-4 p-2 border rounded"
-            />
-            {Object.keys(filters).map((column) => (
-              <div key={column} className="mb-4">
-                <label className="block text-sm font-medium mb-1">
-                  {column}
-                </label>
-                <select
-                  value={filters[column]}
-                  onChange={(e) => handleFilterChange(e, column)}
-                  className="block w-full p-2 border rounded"
-                >
-                  <option value="">All</option>
-                  {columnOptions[column].map((option, index) => (
-                    <option key={index} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
-          </>
+      <div className="w-1/5 bg-white  ">
+        <div className="w-ful flex flex-col items-start">
+          <img
+            src="Logo.png"
+            alt="Beschreibung des Bildes"
+            className="w-64 pt-8 pl-10 "
+          />
+        </div>
+
+        <div className="w-full flex flex-col items-end">
+          <img
+            src="htl3r_logo_transp_gross.png"
+            alt="Beschreibung des Bildes"
+            className="w-1/2 py-5  pr-10"
+          />
+        </div>
+        <div
+          className={`relative w-full h-24 mb-5 flex items-center justify-start ${triangleColor} shadow-[0px_4px_6px_rgba(0,0,0,0.1)]`}
+          disabled={!status}
+          onClick={handleTriangleClick}
+        >
+          <img src="globe.svg" className="pl-16 pr-8"></img>
+          <p className="text-white font-semibold text-3xl">Dashboard</p>
+
+          {status && (
+            <div className="absolute -right-5 top-1/2 -translate-y-1/2 h-0 w-0 border-y-[22px] border-y-transparent border-l-[24px] border-l-[#A82036]"></div>
+          )}
+        </div>
+        {status && (
+          <div className="  overflow-y-auto px-16 ">
+            {data.length > 0 && (
+              <>
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  className="block w-full border-2 rounded-md border-[#FF9AA9] bg-white py-2 px-5  text-gray-800 leading-tight focus:outline-none "
+                />
+                {Object.keys(filters).map((column) => {
+                  if (column === "Datum"  ||
+                    column === "Beginndatum") {
+                    return (
+                      <div key={column} className="mt-8 relative">
+                        <label className="absolute -top-2 ml-3 px-2 text-sm font-medium bg-white text-gray-700 z-20">
+                          {column}
+                        </label>
+                        <DatePicker
+                          selectsRange
+                          startDate={startDate}
+                          endDate={endDate}
+                          onChange={handleDateChange}
+                          isClearable={true}
+                          dateFormat="dd.MM.yyyy"
+                          placeholderText="Wähle Zeitraum"
+                          className="w-full min-w-64 cursor-default border-2 rounded-md border-[#FF9AA9] bg-white py-2 px-5 text-gray-800 leading-tight focus:outline-none "
+                        />
+                      </div>
+                    );
+                  }
+
+                  if (
+                    column === "Klasse" ||
+                    column === "Schüler*innen" ||
+                    column === "Abwesenheitsgrund" ||
+                    column === "Fach" ||
+                    column === "Datum"
+                    ||
+                    column === "Beginndatum"
+                  ) {
+                    return (
+                      <div key={column} className="mt-8 relative">
+                        <label className="absolute -top-2 ml-3 px-2 text-sm font-medium  bg-white text-gray-700 z-5">
+                          {column}
+                        </label>
+                        <select
+                          value={filters[column]}
+                          onChange={(e) => handleFilterChange(e, column)}
+                          className="w-full min-w-64 cursor-default border-2 rounded-md border-[#FF9AA9] bg-white py-2 px-5  text-gray-800 leading-tight focus:outline-none "
+                        >
+                          <option value="">All</option>
+                          {columnOptions[column].map((option, index) => (
+                            <option key={index} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
+              </>
+            )}
+          </div>
         )}
+        <div
+          className={`relative w-full h-24 my-5 flex items-center justify-start ${statistikColor} shadow-[0px_4px_6px_rgba(0,0,0,0.1)]`}
+          onClick={handleTriangleClick}
+        >
+          <img src="graph-logo.svg" className="pl-16 pr-8"></img>
+          <p className="text-white font-semibold text-3xl">Statistiken</p>
+          {!status && (
+            <div className="absolute -right-5 top-1/2 -translate-y-1/2 h-0 w-0 border-y-[22px] border-y-transparent border-l-[24px] border-l-[#A82036]"></div>
+          )}
+        </div>
       </div>
 
       {/* Divider */}
-      <div className="w-0.5 bg-[#636363]"></div>
+      <div className="w-0.5 bg-[#dddbdb]"></div>
 
       {/* Upload Section */}
-      <div className="w-2/3 bg-[#474747] flex justify-center items-center">
-        {!fileName && (
-          <div
-            className={`bg-white w-[50vw] h-[30vh] flex flex-col items-center rounded-3xl shadow-lg border-black border-2 p-12 ${
-              isDragging ? "border-blue-500" : ""
-            }`}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-          >
-            <img src={UploadSVG} alt="upload" className="w-[3vw] mb-4" />
-            <h2 className="text-2xl mb-4">Drag & Drop your Excel file here or</h2>
-            <label className="cursor-pointer bg-gray-300 hover:bg-gray-400 text-black font-semibold py-2 px-4 rounded">
-              Choose File
-              <input
-                type="file"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </label>
-          </div>
-        )}
 
-        {fileName && filteredData.length > 0 && (
-          <div className="w-full h-full overflow-auto p-4">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-white">{fileName}</h2>
-              <button
-                onClick={handleRemove}
-                className="text-white bg-red-500 hover:bg-red-700 px-4 py-2 rounded"
-              >
-                Remove File
-              </button>
+      {status && (
+        <div className="w-4/5 bg-[#EBE9E9] flex flex-col justify-center items-center px-10 pt-20">
+          {!fileName && (
+            <div
+              className={`bg-white w-[50vw] h-[30vh] flex flex-col items-center rounded-3xl shadow-lg border-black border-2 p-12 ${
+                isDragging ? "border-blue-500" : ""
+              }`}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+            >
+              <img src={UploadSVG} alt="upload" className="w-[3vw] mb-4" />
+              <h2 className="text-2xl mb-4">
+                Drag & Drop your Excel file here or
+              </h2>
+              <label className="cursor-pointer bg-gray-300 hover:bg-gray-400 text-black font-semibold py-2 px-4 rounded">
+                Choose File
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+              </label>
             </div>
-            <div className="overflow-auto max-h-[70vh] border border-gray-500">
-              <table className="table-auto border-collapse w-full text-white">
-                <thead>
-                  <tr>
-                    {Object.keys(filteredData[0]).map((key) => (
-                      <th key={key} className="border p-2 bg-gray-700">
-                        {key}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredData.map((row, rowIndex) => (
-                    <tr key={rowIndex}>
-                      {Object.values(row).map((value, cellIndex) => (
-                        <td key={cellIndex} className="border p-2">
-                          {value}
-                        </td>
+          )}
+
+          {fileName && filteredData.length > 0 && (
+            <div className="w-full h-full overflow-auto p-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-black">{fileName}</h2>
+                <button
+                  onClick={handleRemove}
+                  className="text-white bg-red-500 hover:bg-red-700 px-4 py-2 rounded"
+                >
+                  Remove File
+                </button>
+              </div>
+              <div className="overflow-auto max-h-[70vh] border border-[#dddbdb]">
+                <table className="table-auto border-collapse w-full text-black">
+                  <thead>
+                    <tr>
+                      {Object.keys(filteredData[0]).map((key) => (
+                        <th key={key} className="border p-2 bg-white">
+                          {key}
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredData.map((row, rowIndex) => (
+                      <tr key={rowIndex}>
+                        {Object.values(row).map((value, cellIndex) => (
+                          <td key={cellIndex} className="border p-2 bg-white">
+                            {value}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

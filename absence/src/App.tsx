@@ -4,7 +4,6 @@ import ExcelFilter from "./components/ExcelFilter";
 function App() {
   return (
     <>
-      <NavBar />
       <ExcelFilter />
       
     </>
