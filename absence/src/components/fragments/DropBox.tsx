@@ -20,11 +20,12 @@ const DropBox = ({ items, children }: Props) => {
     <>
       <div>
         <Listbox value={selected} onChange={setSelected}>
-          <Label className="block text-sm/6 font-medium text-white">
+          <Label className="absolute ml-3 px-2 text-sm font-medium  bg-white text-gray-700 z-10"
+>
             {children}
           </Label>
           <div className="relative mt-2">
-            <ListboxButton className="relative w-full min-w-40 cursor-default border-2 rounded-3xl border-black bg-white py-2 px-5 text-gray-800 leading-tight focus:outline-none ">
+            <ListboxButton className="relative w-full min-w-64 cursor-default border-2 rounded-md border-[#FF9AA9] bg-white py-2 px-5 text-gray-800 leading-tight focus:outline-none ">
               <span className="flex items-center">
                 <span className="ml-3 block truncate">{selected}</span>
               </span>
@@ -38,7 +39,7 @@ const DropBox = ({ items, children }: Props) => {
 
             <ListboxOptions
               transition
-              className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none data-[closed]:data-[leave]:opacity-0 data-[leave]:transition data-[leave]:duration-100 data-[leave]:ease-in sm:text-sm"
+              className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none data-[closed]:data-[leave]:opacity-0 data-[leave]:transition data-[leave]:duration-100 data-[leave]:ease-in sm:text-sm"
             >
               {items.map((item, index) => (
                 <ListboxOption
