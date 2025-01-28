@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import UploadSVG from "../assets/uploadSVG.svg";
 import Logo from "../assets/logo.png";
 import Htl from "../assets/htl3r_logo_transp.png";
-
+import ExcelChart from "./graphs/ExcelChart";
 
 const ExcelFilter = () => {
   const [data, setData] = useState([]);
@@ -13,6 +13,7 @@ const ExcelFilter = () => {
   const [fileName, setFileName] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showChart, setShowChart] = useState(false);
 
   const allowedColumns = [
     "Schüler*innen",
@@ -23,7 +24,6 @@ const ExcelFilter = () => {
     "Fach",
   ];
 
-  // Function to handle file upload and parse Excel
   const handleFileUpload = (file) => {
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -32,14 +32,29 @@ const ExcelFilter = () => {
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
       const parsedData = XLSX.utils.sheet_to_json(sheet);
-
-      setData(parsedData);
-      setFilteredData(parsedData);
+  
+      // Konvertiere Datumsspalten ins DD/MM/YYYY-Format
+      const processedData = parsedData.map((row) => {
+        Object.keys(row).forEach((key) => {
+          // Prüfe, ob der Wert eine Excel-Datumszahl ist
+          if (typeof row[key] === "number" && row[key] > 40000 && row[key] < 60000) {
+            // Excel-Datum in ein JavaScript-Datum umwandeln
+            const date = new Date((row[key] - 25569) * 86400 * 1000);
+            row[key] = date.toLocaleDateString("en-GB"); // DD/MM/YYYY-Format
+          }
+        });
+        return row;
+      });
+  
+      setData(processedData);
+      setFilteredData(processedData);
       setFileName(file.name);
-      initializeFiltersAndOptions(parsedData);
+      initializeFiltersAndOptions(processedData);
     };
     reader.readAsBinaryString(file);
   };
+  
+  
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -69,9 +84,9 @@ const ExcelFilter = () => {
     setFilters({});
     setColumnOptions({});
     setSearchQuery("");
+    setShowChart(false);
   };
 
-  // Initialize filters and unique column options
   const initializeFiltersAndOptions = (data) => {
     const columns = allowedColumns.filter((col) => Object.keys(data[0] || {}).includes(col));
     const initialFilters = columns.reduce((acc, column) => {
@@ -88,7 +103,6 @@ const ExcelFilter = () => {
     setColumnOptions(options);
   };
 
-  // Handle filter changes
   const handleFilterChange = (e, column) => {
     const value = e.target.value;
     const newFilters = { ...filters, [column]: value };
@@ -96,49 +110,51 @@ const ExcelFilter = () => {
     applyFiltersAndSearch(newFilters, searchQuery);
   };
 
-  // Handle search input
   const handleSearchChange = (e) => {
     const query = e.target.value.toLowerCase();
     setSearchQuery(query);
     applyFiltersAndSearch(filters, query);
   };
 
-  // Filter and search logic
   const applyFiltersAndSearch = (filters, query) => {
     const filtered = data.filter((row) => {
       const matchesFilters = Object.keys(filters).every((key) => {
         return filters[key] === "" || row[key] === filters[key];
       });
-
+  
       const matchesSearch = Object.values(row).some((value) =>
         value.toString().toLowerCase().includes(query)
       );
-
+  
       return matchesFilters && matchesSearch;
     });
-    setFilteredData(filtered);
+  
+    // Sortiere die Daten nach Datum
+    const sorted = filtered.sort((a, b) => {
+      const dateA = new Date(a["Datum"]); // Passe "Datum" an die tatsächliche Spaltenüberschrift an
+      const dateB = new Date(b["Datum"]);
+  
+      return dateA - dateB; // Aufsteigend sortieren
+    });
+  
+    setFilteredData(sorted);
   };
+  
 
   return (
     <div className="flex w-full h-[100vh] bg-[#EBE9E9]">
-      
       {/* Filter Section */}
       <div className="w-1/5 bg-white p-4 overflow-y-auto ">
-      <div className="w-3/4 ">
-            <img src={Logo} alt="Abscence Logo" />
-          </div>
+        <div className="w-3/4 ">
+          <img src={Logo} alt="Abscence Logo" />
+        </div>
 
-          <div className="w-2/4 relative left-36">
-            <img
-              src={Htl}
-              alt="Beschreibung des Bildes"
-              className="w-full"
-            />
-          </div>
+        <div className="w-2/4 relative left-36">
+          <img src={Htl} alt="Beschreibung des Bildes" className="w-full" />
+        </div>
         <h2 className="text-lg font-semibold mb-2">Filters</h2>
         {data.length > 0 && (
           <>
-            
             {Object.keys(filters).map((column) => (
               <div key={column} className="mb-4">
                 <label className="block text-sm font-medium mb-1">
@@ -166,7 +182,7 @@ const ExcelFilter = () => {
       <div className="w-0.5 bg-[#EBE9E9]"></div>
 
       {/* Upload Section */}
-      <div className="w-4/5 bg-[#EBE9E9] flex justify-center items-center mt-36">
+      <div className="w-4/5 bg-[#EBE9E9] flex flex-col justify-center items-center mt-12">
         {!fileName && (
           <div
             className={`bg-white w-[50vw] h-[30vh] flex flex-col items-center rounded-3xl shadow-lg border-black border-2 p-12 ${
@@ -192,20 +208,27 @@ const ExcelFilter = () => {
         {fileName && filteredData.length > 0 && (
           <div className="w-full h-full overflow-auto p-4">
             <div className="flex justify-between items-center mb-4">
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={handleSearchChange}
-              className="block w-1/3 mb-4 p-2 border-red-600 border rounded"
-            />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={handleSearchChange}
+                className="block w-1/3 mb-4 p-2 border-red-600 border rounded"
+              />
               <button
                 onClick={handleRemove}
                 className="text-white bg-[#a82036] hover:bg-red-700 px-4 py-2 rounded"
               >
                 Löschen
               </button>
+              <button
+                onClick={() => setShowChart(!showChart)}
+                className="text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
+              >
+                {showChart ? "Verstecke Grafik" : "Zeige Grafik"}
+              </button>
             </div>
+
             <div className="overflow-auto max-h-[70vh] border border-gray-500 bg-gray-700">
               <table className="table-auto border-collapse w-full text-white">
                 <thead>
@@ -230,6 +253,11 @@ const ExcelFilter = () => {
                 </tbody>
               </table>
             </div>
+            <div className="h-[10vh] w-3/5 mt-4 ">
+            <div>{showChart && <ExcelChart data={filteredData} />}</div>
+            
+            </div>
+            
           </div>
         )}
       </div>
