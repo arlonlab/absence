@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import UploadSVG from "../assets/uploadSVG.svg";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import ExcelChart from "./ExcelChart";
 
 const ExcelFilter = () => {
   const [data, setData] = useState([]);
@@ -27,11 +28,24 @@ const ExcelFilter = () => {
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
       const parsedData = XLSX.utils.sheet_to_json(sheet);
-
-      setData(parsedData);
-      setFilteredData(parsedData);
+  
+      // Konvertiere Datumsspalten ins DD/MM/YYYY-Format
+      const processedData = parsedData.map((row) => {
+        Object.keys(row).forEach((key) => {
+          // Prüfe, ob der Wert eine Excel-Datumszahl ist
+          if (typeof row[key] === "number" && row[key] > 40000 && row[key] < 60000) {
+            // Excel-Datum in ein JavaScript-Datum umwandeln
+            const date = new Date((row[key] - 25569) * 86400 * 1000);
+            row[key] = date.toLocaleDateString("en-GB"); // DD/MM/YYYY-Format
+          }
+        });
+        return row;
+      });
+  
+      setData(processedData);
+      setFilteredData(processedData);
       setFileName(file.name);
-      initializeFiltersAndOptions(parsedData);
+      initializeFiltersAndOptions(processedData);
     };
     reader.readAsBinaryString(file);
   };
@@ -324,6 +338,12 @@ const ExcelFilter = () => {
             </div>
           )}
         </div>
+      )}
+      {!status && (
+       <div className="w-4/5 bg-[#EBE9E9] flex flex-col justify-center items-center px-10 pt-20">
+        <div><ExcelChart data={filteredData} /></div>
+       
+     </div>
       )}
     </div>
   );
