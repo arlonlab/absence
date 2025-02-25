@@ -4,8 +4,13 @@ import UploadSVG from "../assets/uploadSVG.svg";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import ExcelChart from "./ExcelChart";
+import MonthChart from "./MonthChart";
 
 const ExcelFilter = () => {
+
+  const testdata = [4,5,7,8,9,3,8,8,9,2,1,15]
+
+  const [monthData, setMonthData] = useState([]);
   const [data, setData] = useState([]);
   const [filters, setFilters] = useState({});
   const [filteredData, setFilteredData] = useState([]);
@@ -146,18 +151,45 @@ const ExcelFilter = () => {
     setEndDate(end);
     applyDateFilter(start, end);
   };
-
+  
   const applyDateFilter = (start, end) => {
-    if (!start || !end) return;
+    if (!start || !end) {
+      setFilteredData(data);
+      return;
+    }
+  
+    const utcStart = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+    const utcEnd = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate() + 1) - 1;
+  
+
 
     const filtered = data.filter((row) => {
-      const rowDate = new Date(row.Datum);
-      return rowDate >= start && rowDate <= end;
+      if (!row.Beginndatum	) return false;
+  
+      try {
+
+        const normalizedDate = row.Beginndatum.replace(/\./g, '/');
+
+
+        const [day, month, year] = normalizedDate	.split('/');
+        // UTC-Datum erstellen
+        const rowDate = Date.UTC(
+          parseInt(year),
+          parseInt(month) - 1,
+          parseInt(day)
+        );
+        
+        return rowDate >= utcStart && rowDate <= utcEnd;
+      } catch (e) {
+        console.error("Invalid date:", row.Beginndatum	);
+        return false;
+      }
     });
+  
+
 
     setFilteredData(filtered);
   };
-
   return (
     <div className="flex w-full h-[100vh]">
       {/* Filter Section */}
@@ -178,7 +210,7 @@ const ExcelFilter = () => {
           />
         </div>
         <div
-          className={`relative w-full h-24 mb-5 flex items-center justify-start ${triangleColor} shadow-[0px_4px_6px_rgba(0,0,0,0.1)]`}
+          className={` relative w-full h-24 mb-4 flex items-center justify-start ${triangleColor} shadow-[0px_4px_6px_rgba(0,0,0,0.1)]`}
           disabled={!status}
           onClick={handleTriangleClick}
         >
@@ -190,7 +222,7 @@ const ExcelFilter = () => {
           )}
         </div>
         {status && (
-          <div className="  overflow-y-auto px-16 ">
+          <div className="  overflow-y-auto px-16 py-10">
             {data.length > 0 && (
               <>
                 <input
@@ -201,35 +233,14 @@ const ExcelFilter = () => {
                   className="block w-full border-2 rounded-md border-[#FF9AA9] bg-white py-2 px-5  text-gray-800 leading-tight focus:outline-none "
                 />
                 {Object.keys(filters).map((column) => {
-                  if (column === "Datum"  ||
-                    column === "Beginndatum") {
-                    return (
-                      <div key={column} className="mt-8 relative">
-                        <label className="absolute -top-2 ml-3 px-2 text-sm font-medium bg-white text-gray-700 z-20">
-                          {column}
-                        </label>
-                        <DatePicker
-                          selectsRange
-                          startDate={startDate}
-                          endDate={endDate}
-                          onChange={handleDateChange}
-                          isClearable={true}
-                          dateFormat="dd.MM.yyyy"
-                          placeholderText="Wähle Zeitraum"
-                          className="w-full min-w-64 cursor-default border-2 rounded-md border-[#FF9AA9] bg-white py-2 px-5 text-gray-800 leading-tight focus:outline-none "
-                        />
-                      </div>
-                    );
-                  }
+               
 
                   if (
                     column === "Klasse" ||
                     column === "Schüler*innen" ||
                     column === "Abwesenheitsgrund" ||
-                    column === "Fach" ||
-                    column === "Datum"
-                    ||
-                    column === "Beginndatum"
+                    column === "Fach" 
+                  
                   ) {
                     return (
                       <div key={column} className="mt-8 relative">
@@ -253,6 +264,35 @@ const ExcelFilter = () => {
                   }
                   return null;
                 })}
+{Object.keys(filters).map((column) => {
+                  if (column === "Datum"  ||
+                    column === "Beginndatum") {
+                    return (
+                      <div key={column} className="mt-8 relative">
+                        <label className="absolute -top-2 ml-3 px-2 text-sm font-medium bg-white text-gray-700 z-20">
+                          Von/Bis
+                        </label>
+                        <DatePicker
+                          selectsRange
+                          startDate={startDate}
+                          endDate={endDate}
+                          onChange={handleDateChange}
+                          isClearable={true}
+                          dateFormat="dd/MM/yyyy"
+                          placeholderText="Wähle Zeitraum"
+                        
+                          className="w-full min-w-64 cursor-default border-2 rounded-md border-[#FF9AA9] bg-white py-2 px-5 text-gray-800 leading-tight focus:outline-none "
+                        />
+                      </div>
+                    );
+                  }
+
+                 
+                })}
+
+
+
+
               </>
             )}
           </div>
@@ -342,7 +382,9 @@ const ExcelFilter = () => {
       {!status && (
        <div className="w-4/5 bg-[#EBE9E9] flex flex-col justify-center items-center px-10 pt-20">
         <div><ExcelChart data={filteredData} /></div>
-       
+
+        <div className="w-3/5"><MonthChart data={testdata}/></div>
+
      </div>
       )}
     </div>
