@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import UploadSVG from "../assets/uploadSVG.svg";
 import DatePicker from "react-datepicker";
@@ -15,10 +15,12 @@ const ExcelFilter = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [triangleColor, setTriangleColor] = useState("bg-[#A82036]");
   const [statistikColor, setStatistikColor] = useState("bg-[#808080]");
+  const [highlightedStudents, setHighlightedStudents] = useState(new Set());
 
   const [status, setStatus] = useState(true);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
+
   // Function to handle file upload and parse Excel
   const handleFileUpload = (file) => {
     const reader = new FileReader();
@@ -28,20 +30,29 @@ const ExcelFilter = () => {
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
       const parsedData = XLSX.utils.sheet_to_json(sheet);
-  
-      // Konvertiere Datumsspalten ins DD/MM/YYYY-Format
+
+      // Process data: Remove "id" column and convert Excel date values
       const processedData = parsedData.map((row) => {
+        const newRow = {}; // New object without "id"
+
         Object.keys(row).forEach((key) => {
-          // Prüfe, ob der Wert eine Excel-Datumszahl ist
-          if (typeof row[key] === "number" && row[key] > 40000 && row[key] < 60000) {
-            // Excel-Datum in ein JavaScript-Datum umwandeln
-            const date = new Date((row[key] - 25569) * 86400 * 1000);
-            row[key] = date.toLocaleDateString("en-GB"); // DD/MM/YYYY-Format
+          if (key !== "Externe Id") {
+            // Exclude "id" column
+            let value = row[key];
+
+            // Check if the value is an Excel date number
+            if (typeof value === "number" && value > 40000 && value < 60000) {
+              const date = new Date((value - 25569) * 86400 * 1000);
+              value = date.toLocaleDateString("en-GB"); // Convert to DD/MM/YYYY format
+            }
+
+            newRow[key] = value;
           }
         });
-        return row;
+
+        return newRow;
       });
-  
+
       setData(processedData);
       setFilteredData(processedData);
       setFileName(file.name);
@@ -114,17 +125,37 @@ const ExcelFilter = () => {
 
   // Filter and search logic
   const applyFiltersAndSearch = (filters, query) => {
+    const studentAbsenceCounts = {}; // Track "Nicht entschuldigt" counts per student
+
     const filtered = data.filter((row) => {
+      const studentName = row["Schüler*innen"]; // Ensure correct column name
+      const isNichtEntschuldigt = !row["Erledigt"]; // If "Erledigt" is empty
+
+      // Count "Nicht entschuldigt" absences
+      if (isNichtEntschuldigt) {
+        studentAbsenceCounts[studentName] =
+          (studentAbsenceCounts[studentName] || 0) + 1;
+      }
+
       const matchesFilters = Object.keys(filters).every((key) => {
         return filters[key] === "" || row[key] === filters[key];
       });
 
       const matchesSearch = Object.values(row).some((value) =>
-        value.toString().toLowerCase().includes(query)
+        value?.toString().toLowerCase().includes(query)
       );
 
       return matchesFilters && matchesSearch;
     });
+
+    // Identify students with 30+ "Nicht entschuldigt"
+    const newHighlightedStudents = new Set(
+      Object.keys(studentAbsenceCounts).filter(
+        (student) => studentAbsenceCounts[student] >= 30
+      )
+    );
+
+    setHighlightedStudents(newHighlightedStudents); // Update state
     setFilteredData(filtered);
   };
 
@@ -156,6 +187,23 @@ const ExcelFilter = () => {
     });
 
     setFilteredData(filtered);
+  };
+
+  const exportToExcel = () => {
+    if (filteredData.length === 0) {
+      alert("No data to export!");
+      return;
+    }
+
+    // Create a new worksheet
+    const worksheet = XLSX.utils.json_to_sheet(filteredData);
+
+    // Create a new workbook and append the sheet
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Filtered Data");
+
+    // Write file and trigger download
+    XLSX.writeFile(workbook, "Filtered_Data.xlsx");
   };
 
   return (
@@ -201,8 +249,7 @@ const ExcelFilter = () => {
                   className="block w-full border-2 rounded-md border-[#FF9AA9] bg-white py-2 px-5  text-gray-800 leading-tight focus:outline-none "
                 />
                 {Object.keys(filters).map((column) => {
-                  if (column === "Datum"  ||
-                    column === "Beginndatum") {
+                  if (column === "Datum" || column === "Beginndatum") {
                     return (
                       <div key={column} className="mt-8 relative">
                         <label className="absolute -top-2 ml-3 px-2 text-sm font-medium bg-white text-gray-700 z-20">
@@ -227,8 +274,7 @@ const ExcelFilter = () => {
                     column === "Schüler*innen" ||
                     column === "Abwesenheitsgrund" ||
                     column === "Fach" ||
-                    column === "Datum"
-                    ||
+                    column === "Datum" ||
                     column === "Beginndatum"
                   ) {
                     return (
@@ -305,6 +351,12 @@ const ExcelFilter = () => {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-black">{fileName}</h2>
                 <button
+                  onClick={exportToExcel}
+                  className="text-white bg-green-500 hover:bg-green-700 px-4 py-2 rounded"
+                >
+                  Export to Excel
+                </button>
+                <button
                   onClick={handleRemove}
                   className="text-white bg-red-500 hover:bg-red-700 px-4 py-2 rounded"
                 >
@@ -325,14 +377,49 @@ const ExcelFilter = () => {
                   <tbody>
                     {filteredData.map((row, rowIndex) => (
                       <tr key={rowIndex}>
-                        {Object.values(row).map((value, cellIndex) => (
-                          <td key={cellIndex} className="border p-2 bg-white">
-                            {value}
-                          </td>
-                        ))}
+                        {Object.keys(row).map((key, cellIndex) => {
+                          const isStudentColumn = key === "Schüler*innen"; // Adjust if column name differs
+                          const studentName = row[key];
+
+                          return (
+                            <td
+                              key={cellIndex}
+                              className={`border p-2 bg-white ${
+                                isStudentColumn &&
+                                highlightedStudents.has(studentName)
+                                  ? "text-red-500 font-bold"
+                                  : ""
+                              }`}
+                            >
+                              {studentName}
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))}
                   </tbody>
+
+                  {/* Sum Row */}
+                  <tfoot>
+                    <tr className="bg-gray-200 font-bold">
+                      {Object.keys(filteredData[0]).map((key, index) => {
+                        const isNumericColumn = filteredData.every(
+                          (row) =>
+                            !isNaN(parseFloat(row[key])) && isFinite(row[key])
+                        );
+                        return (
+                          <td key={index} className="border p-2 text-center">
+                            {isNumericColumn
+                              ? filteredData.reduce(
+                                  (sum, row) => sum + parseFloat(row[key] || 0),
+                                  0
+                                )
+                              : ""}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
@@ -340,10 +427,11 @@ const ExcelFilter = () => {
         </div>
       )}
       {!status && (
-       <div className="w-4/5 bg-[#EBE9E9] flex flex-col justify-center items-center px-10 pt-20">
-        <div><ExcelChart data={filteredData} /></div>
-       
-     </div>
+        <div className="w-4/5 bg-[#EBE9E9] flex flex-col justify-center items-center px-10 pt-20">
+          <div>
+            <ExcelChart data={filteredData} />
+          </div>
+        </div>
       )}
     </div>
   );
