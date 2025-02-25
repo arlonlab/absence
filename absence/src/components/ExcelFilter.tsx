@@ -5,6 +5,9 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import ExcelChart from "./ExcelChart";
 import MonthChart from "./MonthChart";
+import Logo from "../assets/logo.png";
+import Htl from "../assets/htl3r_logo_transp.png";
+
 
 const ExcelFilter = () => {
 
@@ -18,6 +21,7 @@ const ExcelFilter = () => {
   const [fileName, setFileName] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
   const [triangleColor, setTriangleColor] = useState("bg-[#A82036]");
   const [statistikColor, setStatistikColor] = useState("bg-[#808080]");
 
@@ -25,6 +29,19 @@ const ExcelFilter = () => {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   // Function to handle file upload and parse Excel
+
+  const [showChart, setShowChart] = useState(false);
+
+  const allowedColumns = [
+    "Schüler*innen",
+    "Klasse",
+    "Datum",
+    "Wochentag",
+    "Lehrkraft",
+    "Fach",
+  ];
+
+
   const handleFileUpload = (file) => {
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -54,6 +71,8 @@ const ExcelFilter = () => {
     };
     reader.readAsBinaryString(file);
   };
+  
+  
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -83,11 +102,11 @@ const ExcelFilter = () => {
     setFilters({});
     setColumnOptions({});
     setSearchQuery("");
+    setShowChart(false);
   };
 
-  // Initialize filters and unique column options
   const initializeFiltersAndOptions = (data) => {
-    const columns = Object.keys(data[0] || {});
+    const columns = allowedColumns.filter((col) => Object.keys(data[0] || {}).includes(col));
     const initialFilters = columns.reduce((acc, column) => {
       acc[column] = "";
       return acc;
@@ -96,13 +115,12 @@ const ExcelFilter = () => {
 
     const options = columns.reduce((acc, column) => {
       const uniqueValues = [...new Set(data.map((row) => row[column]))];
-      acc[column] = uniqueValues.sort(); // Sort the unique values alphabetically
+      acc[column] = uniqueValues.sort();
       return acc;
     }, {});
     setColumnOptions(options);
   };
 
-  // Handle filter changes
   const handleFilterChange = (e, column) => {
     const value = e.target.value;
     const newFilters = { ...filters, [column]: value };
@@ -110,28 +128,36 @@ const ExcelFilter = () => {
     applyFiltersAndSearch(newFilters, searchQuery);
   };
 
-  // Handle search input
   const handleSearchChange = (e) => {
     const query = e.target.value.toLowerCase();
     setSearchQuery(query);
     applyFiltersAndSearch(filters, query);
   };
 
-  // Filter and search logic
   const applyFiltersAndSearch = (filters, query) => {
     const filtered = data.filter((row) => {
       const matchesFilters = Object.keys(filters).every((key) => {
         return filters[key] === "" || row[key] === filters[key];
       });
-
+  
       const matchesSearch = Object.values(row).some((value) =>
         value.toString().toLowerCase().includes(query)
       );
-
+  
       return matchesFilters && matchesSearch;
     });
-    setFilteredData(filtered);
+  
+    // Sortiere die Daten nach Datum
+    const sorted = filtered.sort((a, b) => {
+      const dateA = new Date(a["Datum"]); // Passe "Datum" an die tatsächliche Spaltenüberschrift an
+      const dateB = new Date(b["Datum"]);
+  
+      return dateA - dateB; // Aufsteigend sortieren
+    });
+  
+    setFilteredData(sorted);
   };
+  
 
   const handleTriangleClick = () => {
     setTriangleColor((prevColor) =>
@@ -191,7 +217,7 @@ const ExcelFilter = () => {
     setFilteredData(filtered);
   };
   return (
-    <div className="flex w-full h-[100vh]">
+    <div className="flex w-full h-[100vh] bg-[#EBE9E9]">
       {/* Filter Section */}
       <div className="w-1/5 bg-white  ">
         <div className="w-ful flex flex-col items-start">
@@ -296,6 +322,7 @@ const ExcelFilter = () => {
               </>
             )}
           </div>
+
         )}
         <div
           className={`relative w-full h-24 my-5 flex items-center justify-start ${statistikColor} shadow-[0px_4px_6px_rgba(0,0,0,0.1)]`}
@@ -359,6 +386,7 @@ const ExcelFilter = () => {
                         <th key={key} className="border p-2 bg-white">
                           {key}
                         </th>
+
                       ))}
                     </tr>
                   </thead>
@@ -387,6 +415,7 @@ const ExcelFilter = () => {
 
      </div>
       )}
+
     </div>
   );
 };
