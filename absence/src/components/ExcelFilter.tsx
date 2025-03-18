@@ -4,6 +4,7 @@ import UploadSVG from "../assets/uploadSVG.svg";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import ExcelChart from "./ExcelChart";
+import MonthChart from "./MonthChart";
 
 const ExcelFilter = () => {
   const [data, setData] = useState([]);
@@ -21,6 +22,8 @@ const ExcelFilter = () => {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
 
+  const testdata = [4,5,7,8,9,3,8,8,9,2,1,15]
+
   // Function to handle file upload and parse Excel
   const handleFileUpload = (file) => {
     const reader = new FileReader();
@@ -30,36 +33,55 @@ const ExcelFilter = () => {
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
       const parsedData = XLSX.utils.sheet_to_json(sheet);
-
+  
       // Process data: Remove "id" column and convert Excel date values
+      const studentAbsenceCounts = {}; // Track "Nicht entschuldigt" counts per student
+  
       const processedData = parsedData.map((row) => {
-        const newRow = {}; // New object without "id"
-
+        const newRow = {};
+  
         Object.keys(row).forEach((key) => {
           if (key !== "Externe Id") {
-            // Exclude "id" column
             let value = row[key];
-
-            // Check if the value is an Excel date number
+  
+            // Convert Excel date values
             if (typeof value === "number" && value > 40000 && value < 60000) {
               const date = new Date((value - 25569) * 86400 * 1000);
-              value = date.toLocaleDateString("en-GB"); // Convert to DD/MM/YYYY format
+              value = date.toLocaleDateString("en-GB");
             }
-
+  
             newRow[key] = value;
           }
         });
-
+  
+        // Track "Nicht entschuldigt" absences
+        const studentName = row["Schüler*innen"]; // Ensure correct column name
+        const isNichtEntschuldigt = !row["Erledigt"]; // If "Erledigt" is empty
+  
+        if (isNichtEntschuldigt) {
+          studentAbsenceCounts[studentName] =
+            (studentAbsenceCounts[studentName] || 0) + 1;
+        }
+  
         return newRow;
       });
-
+  
+      // Identify students with 30+ "Nicht entschuldigt"
+      const newHighlightedStudents = new Set(
+        Object.keys(studentAbsenceCounts).filter(
+          (student) => studentAbsenceCounts[student] >= 30
+        )
+      );
+  
       setData(processedData);
       setFilteredData(processedData);
       setFileName(file.name);
+      setHighlightedStudents(newHighlightedStudents); // Set highlighted students immediately
       initializeFiltersAndOptions(processedData);
     };
     reader.readAsBinaryString(file);
   };
+  
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -238,7 +260,7 @@ const ExcelFilter = () => {
           )}
         </div>
         {status && (
-          <div className="  overflow-y-auto px-16 ">
+          <div className="  pr-4 pl-4">
             {data.length > 0 && (
               <>
                 <input
@@ -278,7 +300,7 @@ const ExcelFilter = () => {
                     column === "Beginndatum"
                   ) {
                     return (
-                      <div key={column} className="mt-8 relative">
+                      <div key={column} className="mt-8 relative ">
                         <label className="absolute -top-2 ml-3 px-2 text-sm font-medium  bg-white text-gray-700 z-5">
                           {column}
                         </label>
@@ -430,6 +452,9 @@ const ExcelFilter = () => {
         <div className="w-4/5 bg-[#EBE9E9] flex flex-col justify-center items-center px-10 pt-20">
           <div>
             <ExcelChart data={filteredData} />
+          </div>
+          <div className="w-3/5 m-4">
+            <MonthChart data={testdata} />
           </div>
         </div>
       )}
