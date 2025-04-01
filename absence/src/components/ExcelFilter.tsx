@@ -20,10 +20,17 @@ const ExcelFilter = () => {
   const [highlightedStudents, setHighlightedStudents] = useState(new Set());
   const [showOnlyRedStudents, setShowOnlyRedStudents] = useState(false);
 
+  // NEW: state for 'Nicht entschuldigt' filter
+  const [showOnlyNichtEntschuldigt, setShowOnlyNichtEntschuldigt] =
+    useState(false);
+
   const [status, setStatus] = useState(true);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
- 
+
+  // NEW: state for grouping by student
+  const [groupByStudent, setGroupByStudent] = useState(false);
+
   // Sorting config
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
 
@@ -39,21 +46,18 @@ const ExcelFilter = () => {
   };
 
   const getSortValue = (row, key) => {
-    const val = row[key] ? row[key].toString() : "";
+    if (row[key] == null) return "";
+    const val = row[key].toString();
 
-    // Handle Wochentag
     if (key === "Wochentag") {
       return dayOrder[val] !== undefined ? dayOrder[val] : 999;
     }
-    // Handle Schüler*innen numeric sorting
-    if (key === "Schüler*innen") {
-      const match = val.match(/\d+/);
-      if (match) {
-        return parseInt(match[0], 10);
-      }
-      return val.toLowerCase();
+
+    const asNumber = parseFloat(val.replace(",", "."));
+    if (!isNaN(asNumber)) {
+      return asNumber;
     }
-    // Default alphabetical
+
     return val.toLowerCase();
   };
 
@@ -79,7 +83,7 @@ const ExcelFilter = () => {
             // Convert Excel date values
             if (typeof value === "number" && value > 40000 && value < 60000) {
               const date = new Date((value - 25569) * 86400 * 1000);
-              value = date.toLocaleDateString("en-GB");
+              value = date.toLocaleDateString("en-GB"); // dd/mm/yyyy
             }
 
             newRow[key] = value;
@@ -87,7 +91,7 @@ const ExcelFilter = () => {
         });
 
         const studentName = row["Schüler*innen"];
-        const isNichtEntschuldigt = !row["Erledigt"];
+        const isNichtEntschuldigt = !row["Erledigt"]; // empty => nicht entschuldigt
 
         if (isNichtEntschuldigt) {
           studentAbsenceCounts[studentName] =
@@ -97,27 +101,22 @@ const ExcelFilter = () => {
         return newRow;
       });
 
+      // Calculate Fehlstunden pro Monat
       const fehlstundenProMonat = new Array(12).fill(0);
-
       processedData.forEach((row) => {
-        // Extrahiere das Datum und den Monatswert
-        const datum = row["Datum"]; // Annahme: Das Datumsfeld heißt "Datum"
+        const datum = row["Datum"];
         if (datum && datum.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-          const [day, month, year] = datum.split("/");
+          const [, month] = datum.split("/");
           const monthIndex = Number(month) - 1;
 
-          // Extrahiere die Fehlstunden
-          const fehlstunden = row["Fehlstd."]; // Annahme: Das Feld heißt "Fehlstd."
-
-          // Addiere die Fehlstunden für den Monat
+          const fehlstunden = parseFloat(row["Fehlstd."]) || 0;
           fehlstundenProMonat[monthIndex] += fehlstunden;
         }
       });
 
       setMonthData(fehlstundenProMonat);
 
-      console.log("Fehlstunden pro Monat:", monthData);
-
+      // Highlighted students
       const newHighlightedStudents = new Set(
         Object.keys(studentAbsenceCounts).filter(
           (student) => studentAbsenceCounts[student] >= 30
@@ -161,11 +160,15 @@ const ExcelFilter = () => {
     setFilters({});
     setColumnOptions({});
     setSearchQuery("");
+    setGroupByStudent(false);
+    setShowOnlyNichtEntschuldigt(false);
+    setShowOnlyRedStudents(false);
   };
 
   // Initialize filters and unique column options
   const initializeFiltersAndOptions = (data) => {
-    const columns = Object.keys(data[0] || {});
+    if (!data.length) return;
+    const columns = Object.keys(data[0]);
     const initialFilters = columns.reduce((acc, column) => {
       acc[column] = "";
       return acc;
@@ -185,35 +188,48 @@ const ExcelFilter = () => {
     const value = e.target.value;
     const newFilters = { ...filters, [column]: value };
     setFilters(newFilters);
-    applyFiltersAndSearch(newFilters, searchQuery);
+    applyFiltersAndSearch(newFilters, searchQuery, showOnlyNichtEntschuldigt);
   };
 
   // Search
   const handleSearchChange = (e) => {
     const query = e.target.value.toLowerCase();
     setSearchQuery(query);
-    applyFiltersAndSearch(filters, query);
+    applyFiltersAndSearch(filters, query, showOnlyNichtEntschuldigt);
   };
 
   // Filter & Search
-  const applyFiltersAndSearch = (filters, query) => {
+  const applyFiltersAndSearch = (
+    filters,
+    query,
+    onlyNichtEntschuldigt = false
+  ) => {
     const studentAbsenceCounts = {};
 
     const filtered = data.filter((row) => {
+      // If "Nur nicht entschuldigt" is checked, skip rows where Erledigt is not empty
+      if (onlyNichtEntschuldigt) {
+        if (row["Erledigt"] && row["Erledigt"] !== "") {
+          return false;
+        }
+      }
+
       const studentName = row["Schüler*innen"];
       const isNichtEntschuldigt = !row["Erledigt"];
-
       if (isNichtEntschuldigt) {
         studentAbsenceCounts[studentName] =
           (studentAbsenceCounts[studentName] || 0) + 1;
       }
 
+      // Check if row matches all dropdown filters
       const matchesFilters = Object.keys(filters).every((key) => {
         return filters[key] === "" || row[key] === filters[key];
       });
 
-      const matchesSearch = Object.values(row).some((value) =>
-        value?.toString().toLowerCase().includes(query)
+      // Check if row matches search query
+      const rowValues = Object.values(row).filter(Boolean).map(String);
+      const matchesSearch = rowValues.some((val) =>
+        val.toLowerCase().includes(query)
       );
 
       return matchesFilters && matchesSearch;
@@ -229,7 +245,7 @@ const ExcelFilter = () => {
     setFilteredData(filtered);
   };
 
-  // Show/hide side
+  // Show/hide sidebar
   const handleTriangleClick = () => {
     setTriangleColor((prevColor) =>
       prevColor === "bg-[#A82036]" ? "bg-[#808080]" : "bg-[#A82036]"
@@ -249,7 +265,10 @@ const ExcelFilter = () => {
   };
 
   const applyDateFilter = (start, end) => {
-    if (!start || !end) return;
+    if (!start || !end) {
+      setFilteredData(data);
+      return;
+    }
 
     const filtered = data.filter((row) => {
       const rowDate = new Date(row.Datum);
@@ -285,7 +304,7 @@ const ExcelFilter = () => {
 
   const sortedFilteredData = React.useMemo(() => {
     const sorted = [...filteredData];
-    if (sortConfig.key) {
+    if (sortConfig.key && !groupByStudent) {
       sorted.sort((a, b) => {
         const valueA = getSortValue(a, sortConfig.key);
         const valueB = getSortValue(b, sortConfig.key);
@@ -296,17 +315,71 @@ const ExcelFilter = () => {
       });
     }
     return sorted;
-  }, [filteredData, sortConfig]);
+  }, [filteredData, sortConfig, groupByStudent]);
 
-  // Already existing Save Config logic
+  const getAggregatedData = (dataArray) => {
+    const aggregated = {};
+    dataArray.forEach((row) => {
+      const student = row["Schüler*innen"] || "Unbekannt";
+      if (!aggregated[student]) {
+        aggregated[student] = {
+          "Schüler*innen": student,
+          "Fehlstd.": 0,
+          "Min.": 0,
+        };
+      }
+      aggregated[student]["Fehlstd."] += parseFloat(row["Fehlstd."]) || 0;
+      aggregated[student]["Min."] += parseFloat(row["Fehlmin."]) || 0;
+    });
+    return Object.values(aggregated);
+  };
+
+  const sortedAggregatedData = React.useMemo(() => {
+    if (!groupByStudent) return [];
+
+    const relevantRows = filteredData.filter(
+      (row) =>
+        !showOnlyRedStudents || highlightedStudents.has(row["Schüler*innen"])
+    );
+
+    const agg = getAggregatedData(relevantRows);
+
+    const column = sortConfig.key || "Schüler*innen";
+    const direction = sortConfig.direction || "asc";
+
+    agg.sort((a, b) => {
+      const valA = getSortValue(a, column);
+      const valB = getSortValue(b, column);
+      if (valA < valB) return direction === "asc" ? -1 : 1;
+      if (valA > valB) return direction === "asc" ? 1 : -1;
+      return 0;
+    });
+    return agg;
+  }, [
+    groupByStudent,
+    filteredData,
+    showOnlyRedStudents,
+    highlightedStudents,
+    sortConfig,
+  ]);
+
+  useEffect(() => {
+    if (groupByStudent) {
+      setSortConfig({ key: "Schüler*innen", direction: "asc" });
+    }
+  }, [groupByStudent]);
+
   const handleSaveConfig = () => {
     const configData = {
       filters,
       searchQuery,
       showOnlyRedStudents,
+      // Make sure to include the new checkbox if you want to store it:
+      showOnlyNichtEntschuldigt,
       startDate: startDate ? startDate.toISOString() : null,
       endDate: endDate ? endDate.toISOString() : null,
       sortConfig,
+      groupByStudent,
     };
 
     const jsonString = JSON.stringify(configData, null, 2);
@@ -321,23 +394,30 @@ const ExcelFilter = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Example "Load Config" logic
-  const [configFile, setConfigFile] = useState(null);
-
   const handleConfigFileChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
+
     reader.onload = (event) => {
+      const result = event.target?.result;
+      if (typeof result !== "string") {
+        alert("Error: Could not read file as text.");
+        return;
+      }
+
       try {
-        const loadedConfig = JSON.parse(event.target.result);
+        const loadedConfig = JSON.parse(result);
         if (loadedConfig.filters) setFilters(loadedConfig.filters);
         if (typeof loadedConfig.searchQuery === "string") {
           setSearchQuery(loadedConfig.searchQuery);
         }
         if (typeof loadedConfig.showOnlyRedStudents === "boolean") {
           setShowOnlyRedStudents(loadedConfig.showOnlyRedStudents);
+        }
+        if (typeof loadedConfig.showOnlyNichtEntschuldigt === "boolean") {
+          setShowOnlyNichtEntschuldigt(loadedConfig.showOnlyNichtEntschuldigt);
         }
         if (loadedConfig.startDate) {
           setStartDate(new Date(loadedConfig.startDate));
@@ -352,11 +432,15 @@ const ExcelFilter = () => {
         if (loadedConfig.sortConfig) {
           setSortConfig(loadedConfig.sortConfig);
         }
+        if (typeof loadedConfig.groupByStudent === "boolean") {
+          setGroupByStudent(loadedConfig.groupByStudent);
+        }
 
-        // Rerun the filters for immediate effect
+        // Re-apply filters after loading
         applyFiltersAndSearch(
           loadedConfig.filters || {},
-          loadedConfig.searchQuery || ""
+          loadedConfig.searchQuery || "",
+          loadedConfig.showOnlyNichtEntschuldigt || false
         );
 
         alert("Filter config loaded successfully!");
@@ -376,32 +460,34 @@ const ExcelFilter = () => {
   return (
     <div className="flex w-full h-[100vh]">
       {/* Filter Section */}
-      <div className="w-1/5 bg-white">
-        <div className="w-full flex flex-col items-start">
+      <div className="w-1/5 bg-white h-screen overflow-y-auto hide-scrollbar">
+        <div className="w-full flex flex-col items-start  ">
           <img
             src="Logo.png"
             alt="Beschreibung des Bildes"
-            className="w-64 pt-8 pl-10"
+            className="w-60 pt-8 pl-10"
           />
         </div>
-        <div className="w-full flex flex-col items-end">
+        <div className="w-full flex flex-col items-end ">
           <img
             src="htl3r_logo_transp_gross.png"
             alt="Beschreibung des Bildes"
-            className="w-1/2 py-5 pr-10"
+            className="w-1/2 py-5 pr-10 "
           />
         </div>
+
+        {/* Sidebar "Dashboard" button */}
         <div
-          className={`relative w-full h-24 mb-5 flex items-center justify-start ${triangleColor} shadow-[0px_4px_6px_rgba(0,0,0,0.1)]`}
-          disabled={!status}
+          className={`relative w-full h-24 mb-5 flex items-center justify-start ${triangleColor} shadow-[0px_4px_6px_rgba(0,0,0,0.1)] `}
           onClick={handleTriangleClick}
         >
-          <img src="globe.svg" className="pl-16 pr-8" />
+          <img src="globe.svg" className="pl-8 pr-4" />
           <p className="text-white font-semibold text-3xl">Dashboard</p>
           {status && (
             <div className="absolute -right-5 top-1/2 -translate-y-1/2 h-0 w-0 border-y-[22px] border-y-transparent border-l-[24px] border-l-[#A82036]" />
           )}
         </div>
+
         {status && (
           <div className="pr-4 pl-4">
             {data.length > 0 && (
@@ -413,19 +499,68 @@ const ExcelFilter = () => {
                   onChange={handleSearchChange}
                   className="block w-full border-2 rounded-md border-[#FF9AA9] bg-white py-2 px-5 text-gray-800 leading-tight focus:outline-none"
                 />
+
+                {/* Show only red students */}
+                <div className="mt-4 flex items-center">
+                  <div className="flex items-center mt-2">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showOnlyRedStudents}
+                        onChange={() =>
+                          setShowOnlyRedStudents(!showOnlyRedStudents)
+                        }
+                        className="
+                        appearance-none 
+                        h-4 w-4 
+                        border-2 border-[#FF9AA9] 
+                        rounded 
+                        checked:bg-[#A82036] 
+                        checked:border-[#A82036] 
+                        focus:outline-none 
+                        mr-2 
+                        center
+                      "
+                      />
+                      <span className="text-gray-800">Paragraph 45</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* NEW: Show only 'Nicht entschuldigt' */}
                 <div className="flex items-center mt-2">
-                  {/* 
-                    ---- ADDED LINES: Style the checkbox in a "pink/red" theme. ----
-                    We wrap the input and label together with a custom style:
-                  */}
                   <label className="flex items-center space-x-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={showOnlyRedStudents}
-                      onChange={() =>
-                        setShowOnlyRedStudents(!showOnlyRedStudents)
-                      }
-                      // Tailwind classes to style the checkbox:
+                      checked={showOnlyNichtEntschuldigt}
+                      onChange={() => {
+                        const newVal = !showOnlyNichtEntschuldigt;
+                        setShowOnlyNichtEntschuldigt(newVal);
+                        applyFiltersAndSearch(filters, searchQuery, newVal);
+                      }}
+                      className="
+                        appearance-none 
+                        h-4 w-4 
+                        border-2 border-[#FF9AA9] 
+                        rounded 
+                        checked:bg-[#A82036] 
+                        checked:border-[#A82036] 
+                        focus:outline-none 
+                        mr-2 
+                        center
+                      "
+                    />
+                    <span className="text-gray-800">Nur nicht entschuldigt</span>
+                  </label>
+                </div>
+
+                {/* Group by Student */}
+                <div className="flex items-center mt-2">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={groupByStudent}
+                      onChange={() => setGroupByStudent(!groupByStudent)}
                       className="
                         appearance-none 
                         h-4 w-4 
@@ -439,11 +574,12 @@ const ExcelFilter = () => {
                       "
                     />
                     <span className="text-gray-800">
-                      Show only red students
+                      Fehlstunden pro Schüler*in
                     </span>
                   </label>
                 </div>
 
+                {/* Filter dropdowns */}
                 {Object.keys(filters).map((column) => {
                   if (column === "Datum" || column === "Beginndatum") {
                     return (
@@ -459,11 +595,12 @@ const ExcelFilter = () => {
                           isClearable={true}
                           dateFormat="dd.MM.yyyy"
                           placeholderText="Wähle Zeitraum"
-                          className="w-full min-w-64 cursor-default border-2 rounded-md border-[#FF9AA9] bg-white py-2 px-5 text-gray-800 leading-tight focus:outline-none"
+                          className="w-full min-w-[17rem] cursor-default border-2 rounded-md border-[#FF9AA9] bg-white py-2 px-5 text-gray-800 leading-tight focus:outline-none"
                         />
                       </div>
                     );
                   }
+                  // Example of included columns
                   if (
                     column === "Klasse" ||
                     column === "Schüler*innen" ||
@@ -483,7 +620,7 @@ const ExcelFilter = () => {
                           className="w-full min-w-64 cursor-default border-2 rounded-md border-[#FF9AA9] bg-white py-2 px-5 text-gray-800 leading-tight focus:outline-none"
                         >
                           <option value="">All</option>
-                          {columnOptions[column].map((option, index) => (
+                          {columnOptions[column]?.map((option, index) => (
                             <option key={index} value={option}>
                               {option}
                             </option>
@@ -494,15 +631,38 @@ const ExcelFilter = () => {
                   }
                   return null;
                 })}
+                <div className="my-8 flex items-center justify-between">
+                  <button
+                    onClick={handleLoadConfigClick}
+                    className=" bg-[#D9D9D9] hover:bg-[#BFBFBF] px-4 py-2 rounded w-[47%] font-semibold text-black"
+                  >
+                    Laden
+                  </button>
+                  <input
+                    id="load-config-input"
+                    type="file"
+                    accept=".json"
+                    onChange={handleConfigFileChange}
+                    style={{ display: "none" }}
+                  />
+                  <button
+                    onClick={handleSaveConfig}
+                    className="bg-[#A82036] hover:bg-[#961E31] px-4 py-2 rounded w-[47%] font-semibold text-white"
+                  >
+                    Speichern
+                  </button>
+                </div>
               </>
             )}
           </div>
         )}
+
+        {/* Sidebar "Statistiken" button */}
         <div
           className={`relative w-full h-24 my-5 flex items-center justify-start ${statistikColor} shadow-[0px_4px_6px_rgba(0,0,0,0.1)]`}
           onClick={handleTriangleClick}
         >
-          <img src="graph-logo.svg" className="pl-16 pr-8" />
+          <img src="graph-logo.svg" className="pl-8 pr-4" />
           <p className="text-white font-semibold text-3xl">Statistiken</p>
           {!status && (
             <div className="absolute -right-5 top-1/2 -translate-y-1/2 h-0 w-0 border-y-[22px] border-y-transparent border-l-[24px] border-l-[#A82036]" />
@@ -513,9 +673,10 @@ const ExcelFilter = () => {
       {/* Divider */}
       <div className="w-0.5 bg-[#dddbdb]" />
 
-      {/* Upload Section */}
+      {/* Right Section */}
       {status && (
         <div className="w-4/5 bg-[#EBE9E9] flex flex-col justify-center items-center px-10 pt-20">
+          {/* Upload UI */}
           {!fileName && (
             <div
               className={`bg-white w-[50vw] h-[30vh] flex flex-col items-center rounded-3xl shadow-lg border-black border-2 p-12 ${
@@ -540,123 +701,175 @@ const ExcelFilter = () => {
             </div>
           )}
 
+          {/* Data Table */}
           {fileName && filteredData.length > 0 && (
             <div className="w-full h-full overflow-auto p-4">
               <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
                 <h2 className="text-xl font-semibold text-black">{fileName}</h2>
-                <button
-                  onClick={exportToExcel}
-                  className="text-white bg-green-500 hover:bg-green-700 px-4 py-2 rounded"
-                >
-                  Export to Excel
-                </button>
-                <button
-                  onClick={handleRemove}
-                  className="text-white bg-red-500 hover:bg-red-700 px-4 py-2 rounded"
-                >
-                  Remove File
-                </button>
-                <button
-                  onClick={handleSaveConfig}
-                  className="text-white bg-blue-500 hover:bg-blue-700 px-4 py-2 rounded"
-                >
-                  Save Config
-                </button>
-
-                <button
-                  onClick={handleLoadConfigClick}
-                  className="text-white bg-purple-500 hover:bg-purple-700 px-4 py-2 rounded"
-                >
-                  Load Config
-                </button>
-                <input
-                  id="load-config-input"
-                  type="file"
-                  accept=".json"
-                  onChange={handleConfigFileChange}
-                  style={{ display: "none" }}
-                />
+                <div className="flex gap-4 w-[30%]">
+                  <button
+                    onClick={handleRemove}
+                    className="text-white bg-[#A82036] hover:bg-[#961E31] px-4 py-2 rounded w-1/2 font-semibold"
+                  >
+                    Entfernen
+                  </button>
+                  <button
+                    onClick={exportToExcel}
+                    className="text-white bg-[#2BA820] hover:bg-[#208916] px-4 py-2 rounded w-1/2 font-semibold"
+                  >
+                    Exportieren
+                  </button>
+                </div>
               </div>
-              <div className="overflow-auto max-h-[70vh] border border-[#dddbdb]">
-                <table className="table-auto border-collapse w-full text-black">
-                  <thead className="sticky top-0 bg-white z-10">
-                    <tr>
-                      {Object.keys(filteredData[0]).map((key) => (
-                        <th key={key} className="border p-2">
-                          <div className="flex items-center">
-                            <span className="mr-1">{key}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleSort(key)}
-                              className="text-sm"
-                            >
-                              {sortConfig.key === key
-                                ? sortConfig.direction === "asc"
-                                  ? "▲"
-                                  : "▼"
-                                : "⇅"}
-                            </button>
-                          </div>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedFilteredData
-                      .filter(
-                        (row) =>
-                          !showOnlyRedStudents ||
-                          highlightedStudents.has(row["Schüler*innen"])
-                      )
-                      .map((row, rowIndex) => (
-                        <tr key={rowIndex}>
-                          {Object.keys(row).map((key, cellIndex) => {
-                            const isStudentColumn = key === "Schüler*innen";
-                            const studentName = row[key];
+
+              {!groupByStudent && (
+                <div className="overflow-auto max-h-[70vh] border border-[#dddbdb]">
+                  <table className="table-auto border-collapse w-full text-black">
+                    <thead className="sticky top-0 bg-white z-10">
+                      <tr>
+                        {Object.keys(filteredData[0]).map((key) => (
+                          <th key={key} className="border p-2">
+                            <div className="flex items-center">
+                              <span className="mr-1">{key}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleSort(key)}
+                                className="text-sm"
+                              >
+                                {sortConfig.key === key
+                                  ? sortConfig.direction === "asc"
+                                    ? "▲"
+                                    : "▼"
+                                  : "⇅"}
+                              </button>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedFilteredData
+                        .filter(
+                          (row) =>
+                            !showOnlyRedStudents ||
+                            highlightedStudents.has(row["Schüler*innen"])
+                        )
+                        .map((row, rowIndex) => (
+                          <tr key={rowIndex}>
+                            {Object.keys(row).map((key, cellIndex) => {
+                              const isStudentColumn = key === "Schüler*innen";
+                              const studentName = row[key];
+                              return (
+                                <td
+                                  key={cellIndex}
+                                  className={`border p-2 bg-white ${
+                                    isStudentColumn &&
+                                    highlightedStudents.has(studentName)
+                                      ? "text-red-500 font-bold"
+                                      : ""
+                                  }`}
+                                >
+                                  {studentName}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-gray-200 font-bold">
+                        {Object.keys(sortedFilteredData[0]).map(
+                          (key, index) => {
+                            const excludedColumns = [
+                              "Klasse",
+                              "Datum",
+                              "Beginndatum",
+                            ];
+                            const isExcluded = excludedColumns.includes(key);
+
+                            const isNumericColumn =
+                              !isExcluded &&
+                              sortedFilteredData.every(
+                                (row) => !isNaN(parseFloat(row[key]))
+                              );
 
                             return (
                               <td
-                                key={cellIndex}
-                                className={`border p-2 bg-white ${
-                                  isStudentColumn &&
-                                  highlightedStudents.has(studentName)
-                                    ? "text-red-500 font-bold"
-                                    : ""
-                                }`}
+                                key={index}
+                                className="border p-2 text-center"
                               >
-                                {studentName}
+                                {isNumericColumn
+                                  ? sortedFilteredData.reduce(
+                                      (sum, row) =>
+                                        sum + parseFloat(row[key] || 0),
+                                      0
+                                    )
+                                  : ""}
                               </td>
                             );
-                          })}
+                          }
+                        )}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+
+              {groupByStudent && (
+                <div className="overflow-auto max-h-[70vh] border border-[#dddbdb]">
+                  <table className="table-auto border-collapse w-full text-black">
+                    <thead className="sticky top-0 bg-white z-10">
+                      <tr>
+                        {["Schüler*innen", "Fehlstd.", "Min."].map((col) => (
+                          <th key={col} className="border p-2">
+                            <div className="flex items-center">
+                              <span className="mr-1">{col}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleSort(col)}
+                                className="text-sm"
+                              >
+                                {sortConfig.key === col
+                                  ? sortConfig.direction === "asc"
+                                    ? "▲"
+                                    : "▼"
+                                  : "⇅"}
+                              </button>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedAggregatedData.map((item, idx) => (
+                        <tr key={idx}>
+                          <td
+                            className={`border p-2 bg-white ${
+                              highlightedStudents.has(item["Schüler*innen"])
+                                ? "text-red-500 font-bold"
+                                : ""
+                            }`}
+                          >
+                            {item["Schüler*innen"]}
+                          </td>
+                          <td className="border p-2 bg-white">
+                            {item["Fehlstd."].toFixed(2)}
+                          </td>
+                          <td className="border p-2 bg-white">
+                            {item["Min."].toFixed(0)}
+                          </td>
                         </tr>
                       ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-gray-200 font-bold">
-                      {Object.keys(sortedFilteredData[0]).map((key, index) => {
-                        const isNumericColumn = sortedFilteredData.every(
-                          (row) =>
-                            !isNaN(parseFloat(row[key])) && isFinite(row[key])
-                        );
-                        return (
-                          <td key={index} className="border p-2 text-center">
-                            {isNumericColumn
-                              ? sortedFilteredData.reduce(
-                                  (sum, row) => sum + parseFloat(row[key] || 0),
-                                  0
-                                )
-                              : ""}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
+
+      {/* Chart Area */}
       {!status && (
         <div className="w-4/5 bg-[#EBE9E9] flex flex-col justify-center items-center px-10 pt-20">
           <div>

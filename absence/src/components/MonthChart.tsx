@@ -1,4 +1,3 @@
-import React from 'react';
 import { useEffect, useState } from "react";
 
 import {
@@ -11,7 +10,6 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { faker } from '@faker-js/faker'; 
 
 
 const MonthChart = ({ data }) => {
