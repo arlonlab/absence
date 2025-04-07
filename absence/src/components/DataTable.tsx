@@ -1,7 +1,4 @@
 // src/components/DataTable.jsx
-
-import React from "react";
-
 const DataTable = ({
   fileName,
   handleRemove,

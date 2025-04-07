@@ -1,6 +1,4 @@
 // src/components/FileUpload.jsx
-
-import React from "react";
 import UploadSVG from "../assets/uploadSVG.svg";
 
 const FileUpload = ({ isDragging, setIsDragging, handleFileUpload }) => {

@@ -30,7 +30,7 @@ function createWindow() {
   win = new BrowserWindow({
     fullscreen: true,
     title: "Absence",
-    icon: "Logo.png",
+    icon: Logo,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },
