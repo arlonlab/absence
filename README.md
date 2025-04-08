@@ -2,6 +2,8 @@
 
 Absence ist ein Open-Source-Projekt, das ursprünglich von der Direktion der HTL Rennweg im Rahmen des ITP-Unterrichts in Auftrag gegeben wurde. Ziel dieses Projekts ist es, Fehlstunden von Schüler*innen visuell darzustellen und Lehrer*innen – insbesondere Klassenvorständen – einen übersichtlichen und schnellen Einblick in die Abwesenheiten zu ermöglichen.
 
+Entwickelt von: Arlon Labalan | Benjamin Bician | Anil Kapan
+
 ## Merkmale
 
 - **Übersichtliche Visualisierung** von Fehlstunden
@@ -65,3 +67,7 @@ Absence steht unter der **MIT License**. Weitere Details findest du in der Datei
 
 
 Vielen Dank für dein Interesse an Absence! Bei Fragen oder Anmerkungen freuen wir uns über deine [Issues](#) oder Pull Requests.
+
+## Github Repo
+
+https://github.com/arlonlab/absence
